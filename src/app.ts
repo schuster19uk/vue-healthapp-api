@@ -6,6 +6,8 @@ import { connectToMongo, getRecipeModel } from './models/recipeModel';
 dotenv.config();
 
 const app = express();
+
+// Middleware setup (body-parser, cors, etc.)
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:8080');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
@@ -14,7 +16,7 @@ app.use((req, res, next) => {
 });
 
 
-// Middleware setup (body-parser, cors, etc.)
+
 
 // Connect to MongoDB
 connectToMongo()

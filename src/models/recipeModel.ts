@@ -28,12 +28,14 @@ interface INutritional {
 
 interface IIngredient {
   name: string;
+  measure: string;
   quantity: string;
   category: string;
 }
 
 interface IOptionalIngredient {
   name?: string;
+  unit?: string;
   quantity?: string;
   category?: string;
 }
@@ -52,33 +54,67 @@ export interface IRecipe {
 }
 
 class RecipeModel {
-  private collection: any;
+  private recipeCollection: any;
+  private edamamCollection: any;
 
   constructor(collection: ReturnType<typeof MongoClient['db']>) {
-    this.collection = collection.collection('recipes');
+    this.recipeCollection = collection.collection('recipes');
+    this.edamamCollection = collection.collection('edamam_recipes');
   }
 
   async createRecipe(recipe: IRecipe): Promise<IRecipe> {
-    const result = await this.collection.insertOne(recipe);
+    const result = await this.recipeCollection.insertOne(recipe);
     if (!result.insertedId) {
       throw new Error('Failed to insert recipe');
     }
-    const insertedRecipe = await this.collection.findOne({ _id: result.insertedId });
+    const insertedRecipe = await this.recipeCollection.findOne({ _id: result.insertedId });
     if (!insertedRecipe) {
       throw new Error('Failed to retrieve inserted recipe');
     }
     return insertedRecipe;
   }
 
+  async createEdamamBatchRecipe(data: any): Promise<any> {
+    const options = { ordered: true };
+    const result = await this.edamamCollection.insertMany(data , options);
+    if (result.insertedCount <= 0) {
+      throw new Error('Failed to insert recipe');
+    }
+
+    return result;
+  }
+
+  //this is only for dev purposes
+  async deleteEdamamAllRecords(): Promise<any> {
+    const options = { ordered: true };
+    const result = await this.edamamCollection.deleteMany({});
+    if (result.deletedCount <= 0) {
+      throw new Error('Failed to delete recipes');
+    }
+
+    return result;
+  }
+
+  //delete recipes records (dev only)
+  async deleteAllRecipeRecords(): Promise<any> {
+    const options = { ordered: true };
+    const result = await this.recipeCollection.deleteMany({});
+    if (result.deletedCount <= 0) {
+      throw new Error('Failed to delete recipes');
+    }
+
+    return result;
+  }
+
   async getRecipesByIngredients(ingredients: string[]): Promise<IRecipe[]> {
-    return this.collection.find({
+    return this.recipeCollection.find({
       'ingredients.name': { $in: ingredients },
     }).toArray();
   }
 
   async getRecipesByMatchingIngredientsCount(ingredientNames: string[]): Promise<any[]> {
     console.log('Match Recipes to ingredients: ', ingredientNames);
-    const result = await this.collection.aggregate([
+    const result = await this.recipeCollection.aggregate([
       {
         $unwind: '$ingredients',
       },
@@ -100,7 +136,7 @@ class RecipeModel {
       {
         $match: {
           matching_count: {
-            $lte: ingredientNames.length + await this.collection.countDocuments({
+            $lte: ingredientNames.length + await this.recipeCollection.countDocuments({
               'ingredients.name': { $in: ingredientNames },
             }),
           },
@@ -116,7 +152,7 @@ class RecipeModel {
 
   async getRecipesByMatchingIngredientsCountIncludesMissingIngredients(ingredientNames: string[]): Promise<any[]> {
     console.log('Match Recipes to ingredients full: ', ingredientNames);
-    const result = await this.collection.aggregate([
+    const result = await this.recipeCollection.aggregate([
         {
             $unwind: '$ingredients',
         },
@@ -177,7 +213,7 @@ class RecipeModel {
 
   async getRecipesByMatchingIngredientsIncludesMissingIngredientsMatchAtLeastOld(ingredientNames: string[], minMatchingCount: number): Promise<any[]> {
     console.log('Match Recipes to ingredients Old: ', ingredientNames);
-    const result = await this.collection.aggregate([
+    const result = await this.recipeCollection.aggregate([
         {
             $unwind: '$ingredients',
         },
@@ -241,7 +277,7 @@ class RecipeModel {
 
   async getRecipesByMatchingIngredientsIncludesMissingIngredientsMatchAtLeast(ingredientNames: string[], minMatchingCount: number): Promise<any[]> {
     console.log('Match Recipes to ingredients: ', ingredientNames);
-    const result = await this.collection.aggregate([
+    const result = await this.recipeCollection.aggregate([
         {
             $unwind: '$ingredients',
         },
@@ -303,7 +339,25 @@ class RecipeModel {
 }
 
   async getTopRecipes(limit: number): Promise<IRecipe[]> {
-    return this.collection.find().limit(limit).toArray();
+    return this.recipeCollection.find().limit(limit).toArray();
+  }
+
+  async convertAllEdamamRecipesToOurRecipes(): Promise<any> {
+    // get the necessary data from edam
+    const result = await this.edamamCollection.find({},{ projection : { _id:0, "recipe.label": 1, "recipe.mealType": 1 , "recipe.dishType":1 , "recipe.ingredients":1 , "recipe.ingredientLines":1 , "recipe.calories" : 1 , "recipe.source":1,"recipe.url":1, "recipe.healthLabels" : 1,"recipe.cautions" : 1 }})
+    .toArray((err: any, recipes: any) => {
+      if (err) {
+        console.error('Error querying MongoDB:', err);
+        return;
+      }
+    });
+
+    // convert edamam to our recipe here (TODO)
+
+
+
+    return {status:'ok'};
+
   }
 
 }

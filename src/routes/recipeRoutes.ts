@@ -1,9 +1,26 @@
 // src/routes/recipeRoutes.ts
 import express, { Request, Response } from 'express';
 import { getRecipeModel } from '../models/recipeModel';
+import axios, { Axios } from 'axios';
 
 const router = express.Router();
 const recipeModel = getRecipeModel();
+
+interface ApiResult {
+  shouldContinue: boolean;
+  apiURL: string;
+}
+
+const requestData = {
+  type:'public',
+  apiKey: process.env.EDAMAM_APP_KEY,
+  appId: process.env.EDAMAM_APP_ID
+};
+
+const maxEdamamRequestLimit = 1;
+const minRequestDelay = 8000; // this is the minimum request limit once every 8 seconds (2 more than the minimum just in case)
+const additionalDelay = 15000; // this is the additional maximum added 
+
 
 // Route to create a new recipe with sample data (dev only)
 router.post('/sample-recipe', async (req: Request, res: Response) => {
@@ -14,8 +31,8 @@ router.post('/sample-recipe', async (req: Request, res: Response) => {
       recipe_image:'https://images.unsplash.com/photo-1551892374-ecf8754cf8b0?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTJ8fHBhc3RhJTIwYm9sb2duZXNlJTIwc2hvcnQlMjB1cmx8ZW58MHx8MHx8fDA%3D',
       instructions: 'Boil spaghetti and prepare Bolognese sauce...',
       ingredients: [
-        { name: 'Spaghetti', quantity: '200g', category: 'Pasta' },
-        { name: 'Ground beef', quantity: '500g', category: 'Meat' },
+        { name: 'Spaghetti', measure:'grams', quantity: '200', category: 'Pasta' },
+        { name: 'Ground beef',  measure:'grams', quantity: '500', category: 'Meat' },
         // ... other ingredients
       ],
       allergies:[],
@@ -37,6 +54,7 @@ router.post('/sample-recipe', async (req: Request, res: Response) => {
   }
 });
 
+//curl -X POST http://localhost:3000/api/recipes/sample-recipes
 // Route to create multiple sample recipes (dev only)
 router.post('/sample-recipes', async (req: Request, res: Response) => {
   try {
@@ -47,8 +65,8 @@ router.post('/sample-recipes', async (req: Request, res: Response) => {
         recipe_image:'https://media.istockphoto.com/id/1138854044/photo/egg-salad-sandwich-with-crispy-bacon.jpg?s=612x612&w=0&k=20&c=A2BjXsNB2c8FQPcU9TKMXU0BoWFyahdrib5C83RQAOc=',
         instructions: 'Make Sandwich...',
         ingredients: [
-          { name: 'Bread', quantity: '2 Slices', category: 'Bread' },
-          { name: 'Egg', quantity: '1', category: 'Dairy' },
+          { name: 'Bread', measure:'slices', quantity: '2', category: 'Bread' },
+          { name: 'Egg', measure:'units', quantity: '1', category: 'Dairy' },
           // ... other ingredients
         ],
         allergies:[          
@@ -81,8 +99,8 @@ router.post('/sample-recipes', async (req: Request, res: Response) => {
         recipe_image:'https://images.unsplash.com/photo-1551892374-ecf8754cf8b0?w=500&auto=format&fit=crop&q=60&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTJ8fHBhc3RhJTIwYm9sb2duZXNlJTIwc2hvcnQlMjB1cmx8ZW58MHx8MHx8fDA%3D',
         instructions: 'Boil spaghetti and prepare Bolognese sauce...',
         ingredients: [
-          { name: 'Spaghetti', quantity: '200g', category: 'Pasta' },
-          { name: 'Ground beef', quantity: '500g', category: 'Meat' },
+          { name: 'Spaghetti', measure:'grams', quantity: '200', category: 'Pasta' },
+          { name: 'Ground beef', measure:'grams', quantity: '500', category: 'Meat' },
           // ... other ingredients
         ],
         allergies:[        
@@ -113,8 +131,8 @@ router.post('/sample-recipes', async (req: Request, res: Response) => {
         recipe_image:'https://media.istockphoto.com/id/1443171956/photo/typical-spanish-potato-omelet-with-a-portion-cut-on-top-of-it.jpg?s=612x612&w=0&k=20&c=obXmoE1MaUKG-pmwPob34JlRgem6NAaVSiXaZSlG_-o=',
         instructions: 'Make Potato Omelette...',
         ingredients: [
-          { name: 'Potato', quantity: '500g', category: 'Potatoes' },
-          { name: 'Egg', quantity: '5', category: 'Dairy' },
+          { name: 'Potato',measure:'grams', quantity: '500', category: 'Potatoes' },
+          { name: 'Egg',measure:'units', quantity: '5', category: 'Dairy' },
           // ... other ingredients
         ],
         allergies:[        
@@ -155,6 +173,22 @@ router.post('/sample-recipes', async (req: Request, res: Response) => {
     res.status(201).json(createdRecipes);
   } catch (error) {
     console.error('Error creating sample recipes:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// Route to create multiple sample recipes (dev only)
+router.get('/createRecipesFromEdam', async (req: Request, res: Response) => {
+  try {
+
+    const sampleRecipes = ['',''];
+
+    const edamamRecipes = await recipeModel.convertAllEdamamRecipesToOurRecipes();
+
+    // Respond with the created recipes
+    res.status(200).json({status:'ok'});
+  } catch (error) {
+    console.error('Error converting edamam recipes to our recipes :', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -264,5 +298,154 @@ router.get('/matching-recipes-include-non-matching-at-least', async (req: Reques
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+router.get('/deleteRecipe', async (req: Request, res: Response) => {
+  try {
+
+    const deleteRecipes = await recipeModel.deleteAllRecipeRecords();
+
+    // Respond with the matching recipes
+    res.status(200).json(deleteRecipes);
+  } catch (error) {
+    console.error('Error deleting recipes:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+router.get('/deleteEdam', async (req: Request, res: Response) => {
+  try {
+
+    const deleteRecipes = await recipeModel.deleteEdamamAllRecords();
+
+    // Respond with the matching recipes
+    res.status(200).json(deleteRecipes);
+  } catch (error) {
+    console.error('Error deleting edamam recipes:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+router.get('/get-edamam', async (req: Request, res: Response) => {
+  try {
+
+
+   //const result = await recursiveAsyncFunction(true , "url" , req)
+
+   recursiveGetAllEdamamAsyncFunction(true, 'https://api.edamam.com/api/recipes/v2').then(() => {
+    console.log('Recursive function completed');
+    res.status(200).json({status:'all ok'});
+  });
+
+
+  } catch (error) {
+    console.error('Error retrieving recipes:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
+
+//start of recursive and related edamam functions
+
+async function recursiveGetAllEdamamAsyncFunction(shouldContinue: boolean, apiURL: string , counter: number = 0): Promise<void> {
+  try {
+    if (!shouldContinue || counter >= maxEdamamRequestLimit) {
+      console.log('Base condition met. Stopping recursion.');
+      return; // Base case: stop recursion
+    }
+
+    const result = await getEdamamRecipesFromAPI(apiURL , counter);
+
+    // Check the result and decide whether to make the next recursive call
+    if (result.shouldContinue) {
+      //console.log('Continuing recursion.');
+      await delay(minRequestDelay + Math.floor(Math.random() * additionalDelay)); // randomdelay
+      console.log('function called at: ' + new Date().toString());
+      await recursiveGetAllEdamamAsyncFunction(result.shouldContinue, result.apiURL , counter + 1);
+    } else {
+      console.log('Stopping recursion based on condition.');
+    }
+  } catch (error) {
+    console.error('Error in recursiveAsyncFunction:', error);
+    // Handle the error as needed
+  }
+}
+
+async function getEdamamRecipesFromAPI(apiURL: string , counter: number): Promise<ApiResult> {
+  try {
+    const response = await axios.get(apiURL, {
+      params: {
+        type: requestData.type,
+        app_key: requestData.apiKey,
+        app_id: requestData.appId, 
+        //cuisineType:['American', 'Asian', 'British', 'Caribbean', 'Central Europe', 'Chinese','Eastern Europe','French','Indian','Italian','Japanese','Kosher','Mediterranean','Mexican','Middle Eastern','Nordic','South American','South East Asian'], 
+        // dishType:['Main Course','Desserts' , 'Salad' , 'Sandwiches' , 'Side dish' , 'Soup' , 'Starter'],
+        cuisineType:['Asian', 'British', 'Caribbean', 'Central Europe', 'Chinese','Eastern Europe','French','Indian','Italian','Japanese','Kosher','Mediterranean','Mexican','Middle Eastern','Nordic','South American','South East Asian'], 
+        dishType:['Main Course', 'Salad' , 'Sandwiches' , 'Soup' , 'Starter'],
+        mealType:['Breakfast' , 'Lunch' , 'Dinner' , 'Teatime'] //excludes some mealTypes
+      },
+      paramsSerializer: {
+        indexes: null, // use brackets with indexes
+      }
+    });
+    console.log('API call completed:', JSON.stringify(response.data.hits[0]));
+
+    // this inserts into the database (uncomment when ready)
+    const createdBatchRecipe = await recipeModel.createEdamamBatchRecipe(response.data.hits);
+    console.log('batch data created result: ' + JSON.stringify(createdBatchRecipe));
+
+    let shouldContinue = true;
+    let APIURL = '';
+
+    if (response.data._links)
+      {
+        if(response.data._links.next.href){
+          //console.log('from: ' +  data.from);
+          console.log('record count: ' +  response.data.to);
+          
+          //console.log('next link: ' + response.data._links.next.href)
+          APIURL = response.data._links.next.href;
+          console.log('counter value is: ' +  counter);
+          if(counter >= maxEdamamRequestLimit)
+          {
+            //console.log('stopping function testing ');
+            APIURL = '';
+            shouldContinue = false;
+          }
+
+        }
+        else
+        {
+          //console.log('no more links found setting function to stop ');
+          APIURL = '';
+          shouldContinue = false;
+        }
+      }
+      else
+      {
+        //console.log('no links found setting function to stop ');
+        APIURL = '';
+        shouldContinue = false;
+      }
+
+    const result: ApiResult = {
+      shouldContinue: shouldContinue,
+      apiURL: APIURL,
+    };
+    return result;
+  } catch (error) {
+    console.error('Error in someAsyncOperation:', error);
+    // Handle the error as needed
+    throw error; // Rethrow the error to propagate it up the call stack
+  }
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// end of recursive and related edamam functions
+
 
 export = router;
