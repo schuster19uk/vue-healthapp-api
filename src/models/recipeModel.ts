@@ -211,68 +211,68 @@ class RecipeModel {
     return result;
   }
 
-  async getRecipesByMatchingIngredientsIncludesMissingIngredientsMatchAtLeastOld(ingredientNames: string[], minMatchingCount: number): Promise<any[]> {
-    console.log('Match Recipes to ingredients Old: ', ingredientNames);
-    const result = await this.recipeCollection.aggregate([
-        {
-            $unwind: '$ingredients',
-        },
-        {
-            $group: {
-                _id: '$_id',
-                recipe_data: { $first: '$$ROOT' },
-                recipe_name: { $first: '$recipe_name' },
-                recipe_image: { $first: '$recipe_image' },
-                instructions: {$first: '$instructions'},
-                allIngredients: { $push: '$ingredients.name' },
-                matchingIngredients: {
-                    $addToSet: {
-                        $cond: {
-                            if: { $in: ['$ingredients.name', ingredientNames] },
-                            then: '$ingredients.name',
-                            else: null,
-                        },
-                    },
-                },
-            },
-        },
-        {
-            $addFields: {
-                matchingIngredients: {
-                    $filter: {
-                        input: '$matchingIngredients',
-                        as: 'ingredient',
-                        cond: { $ne: ['$$ingredient', null] },
-                    },
-                },
-                nonMatchingIngredients: {
-                    $setDifference: ['$allIngredients', '$matchingIngredients'],
-                },
-                matching_count: {
-                    $size: {
-                        $filter: {
-                            input: '$matchingIngredients',
-                            as: 'ingredient',
-                            cond: { $ne: ['$$ingredient', null] },
-                        },
-                    },
-                },
-            },
-        },
-        {
-            $match: {
-                matching_count: {
-                    $gte: minMatchingCount,
-                },
-            },
-        },
-        {
-            $sort: { matching_count: -1 },
-        },
-    ]).toArray();
+  // async getRecipesByMatchingIngredientsIncludesMissingIngredientsMatchAtLeastOld(ingredientNames: string[], minMatchingCount: number): Promise<any[]> {
+  //   console.log('Match Recipes to ingredients Old: ', ingredientNames);
+  //   const result = await this.recipeCollection.aggregate([
+  //       {
+  //           $unwind: '$ingredients',
+  //       },
+  //       {
+  //           $group: {
+  //               _id: '$_id',
+  //               recipe_data: { $first: '$$ROOT' },
+  //               recipe_name: { $first: '$recipe_name' },
+  //               recipe_image: { $first: '$recipe_image' },
+  //               instructions: {$first: '$instructions'},
+  //               allIngredients: { $push: '$ingredients.name' },
+  //               matchingIngredients: {
+  //                   $addToSet: {
+  //                       $cond: {
+  //                           if: { $in: ['$ingredients.name', ingredientNames] },
+  //                           then: '$ingredients.name',
+  //                           else: null,
+  //                       },
+  //                   },
+  //               },
+  //           },
+  //       },
+  //       {
+  //           $addFields: {
+  //               matchingIngredients: {
+  //                   $filter: {
+  //                       input: '$matchingIngredients',
+  //                       as: 'ingredient',
+  //                       cond: { $ne: ['$$ingredient', null] },
+  //                   },
+  //               },
+  //               nonMatchingIngredients: {
+  //                   $setDifference: ['$allIngredients', '$matchingIngredients'],
+  //               },
+  //               matching_count: {
+  //                   $size: {
+  //                       $filter: {
+  //                           input: '$matchingIngredients',
+  //                           as: 'ingredient',
+  //                           cond: { $ne: ['$$ingredient', null] },
+  //                       },
+  //                   },
+  //               },
+  //           },
+  //       },
+  //       {
+  //           $match: {
+  //               matching_count: {
+  //                   $gte: minMatchingCount,
+  //               },
+  //           },
+  //       },
+  //       {
+  //           $sort: { matching_count: -1 },
+  //       },
+  //   ]).toArray();
 
-    return result;
-  }
+  //   return result;
+  // }
 
 
   async getRecipesByMatchingIngredientsIncludesMissingIngredientsMatchAtLeast(ingredientNames: string[], minMatchingCount: number): Promise<any[]> {
